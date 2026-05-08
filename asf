@@ -1,3 +1,393 @@
-asdf
-asfasdfasdfasdfasdf.
-asdfasdf
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>학교 급식표 앱</title>
+
+<style>
+body{
+    margin:0;
+    padding:20px;
+    font-family:Arial, sans-serif;
+    background:#f4f6f8;
+}
+h1{text-align:center;}
+
+.box{
+    background:white;
+    padding:20px;
+    border-radius:14px;
+    max-width:900px;
+    margin:20px auto;
+    box-shadow:0 5px 10px rgba(0,0,0,0.08);
+    position:relative;
+}
+
+input{
+    width:100%;
+    padding:10px;
+    margin-top:8px;
+    margin-bottom:10px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    box-sizing:border-box;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    background:#4caf50;
+    color:white;
+    cursor:pointer;
+    margin-top:8px;
+}
+
+button:hover{background:#43a047;}
+
+.link{
+    color:#1976d2;
+    text-align:center;
+    display:block;
+    cursor:pointer;
+    margin-top:10px;
+}
+
+.notice{
+    background:#ffe95c;
+    padding:10px;
+    border-radius:8px;
+    margin-bottom:10px;
+}
+
+.food{
+    background:#eee;
+    padding:8px;
+    border-radius:8px;
+    margin-top:6px;
+}
+
+.topBtn{
+    position:absolute;
+    top:15px;
+    right:15px;
+    color:red;
+    cursor:pointer;
+    font-size:14px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:12px;
+    margin-top:15px;
+}
+
+.day{
+    border:1px solid #ddd;
+    border-radius:12px;
+    padding:12px;
+    background:#fafafa;
+    cursor:pointer;
+}
+
+.day:hover{
+    background:#f1f1f1;
+}
+
+.dayTitle{
+    font-weight:bold;
+    margin-bottom:8px;
+}
+
+.small{
+    font-size:13px;
+    color:#666;
+}
+
+.red{
+    background:#e53935 !important;
+}
+
+#registerPage,#mainPage,#adminLoginPage,#managePage{
+    display:none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🍱 학교 급식표</h1>
+
+<!-- 로그인 -->
+<div class="box" id="loginPage">
+<h3>로그인</h3>
+<input id="loginId" placeholder="아이디">
+<input id="loginPw" type="password" placeholder="비밀번호">
+<button onclick="userLogin()">로그인</button>
+<button onclick="goAdminLogin()">관리자 계정으로 로그인하기</button>
+<span class="link" onclick="goRegister()">회원가입하기</span>
+</div>
+
+<!-- 관리자 로그인 -->
+<div class="box" id="adminLoginPage">
+<h3>관리자 로그인</h3>
+<input id="adminId" placeholder="아이디">
+<input id="adminPw" type="password" placeholder="비밀번호">
+<input id="adminSchool" placeholder="소속 학교">
+<button onclick="adminLogin()">로그인</button>
+<span class="link" onclick="goLogin()">뒤로가기</span>
+</div>
+
+<!-- 회원가입 -->
+<div class="box" id="registerPage">
+<h3>회원가입</h3>
+<input id="regId" placeholder="아이디">
+<input id="regPw" type="password" placeholder="비밀번호">
+<input id="regSchool" placeholder="소속 학교">
+<button onclick="register()">회원가입</button>
+<span class="link" onclick="goLogin()">로그인으로 돌아가기</span>
+</div>
+
+<!-- 메인 -->
+<div class="box" id="mainPage">
+<div class="topBtn" onclick="deleteAccount()">회원 탈퇴</div>
+<div class="notice" id="welcome"></div>
+
+<h3>급식표 검색</h3>
+<input id="searchDate" placeholder="예: 4월 20일">
+<button onclick="searchMeal()">검색</button>
+<div id="result"></div>
+
+<div id="adminButtons" style="display:none;">
+<hr>
+<button onclick="goManage()">급식표 관리</button>
+</div>
+
+<button onclick="logout()">로그아웃</button>
+</div>
+
+<!-- 관리자 급식표 관리 -->
+<div class="box" id="managePage">
+<h2>급식표 관리</h2>
+
+<input id="mealDate" placeholder="날짜 입력 (예: 4월 20일)">
+<input id="mealFood" placeholder="급식 입력 (쉼표로 구분)">
+<button onclick="saveMeal()">급식표 추가</button>
+
+<button id="deleteBtn" onclick="toggleDeleteMode()">급식표 삭제</button>
+
+<p class="small">삭제 모드에서 달력 칸을 누르면 해당 날짜 급식표가 삭제됩니다.</p>
+
+<div class="grid" id="calendar"></div>
+
+<button onclick="openMain()">뒤로가기</button>
+</div>
+
+<script>
+let users = JSON.parse(localStorage.getItem("users")) || [];
+let meals = JSON.parse(localStorage.getItem("meals")) || {};
+let currentUser = JSON.parse(localStorage.getItem("currentUser")) || null;
+let deleteMode = false;
+
+/* 관리자 기본 계정 */
+if(!users.find(u=>u.id==="admin")){
+    users.push({
+        id:"admin",
+        pw:"1234",
+        school:"",
+        admin:true
+    });
+    localStorage.setItem("users",JSON.stringify(users));
+}
+
+function saveAll(){
+    localStorage.setItem("users",JSON.stringify(users));
+    localStorage.setItem("meals",JSON.stringify(meals));
+    localStorage.setItem("currentUser",JSON.stringify(currentUser));
+}
+
+function hideAll(){
+    loginPage.style.display="none";
+    registerPage.style.display="none";
+    adminLoginPage.style.display="none";
+    mainPage.style.display="none";
+    managePage.style.display="none";
+}
+
+function goLogin(){hideAll();loginPage.style.display="block";}
+function goRegister(){hideAll();registerPage.style.display="block";}
+function goAdminLogin(){hideAll();adminLoginPage.style.display="block";}
+
+function openMain(){
+    hideAll();
+    mainPage.style.display="block";
+    welcome.innerText = currentUser.school + " 로그인 완료";
+
+    if(currentUser.admin){
+        adminButtons.style.display="block";
+    }else{
+        adminButtons.style.display="none";
+    }
+}
+
+function goManage(){
+    hideAll();
+    managePage.style.display="block";
+    drawCalendar();
+}
+
+function register(){
+    let id=regId.value.trim();
+    let pw=regPw.value.trim();
+    let school=regSchool.value.trim();
+
+    if(id==""||pw==""||school=="") return alert("모든 칸 입력");
+
+    if(users.find(u=>u.id===id)) return alert("이미 존재하는 아이디");
+
+    users.push({id,pw,school,admin:false});
+    saveAll();
+    alert("회원가입 완료");
+    goLogin();
+}
+
+function userLogin(){
+    let id=loginId.value.trim();
+    let pw=loginPw.value.trim();
+
+    let user=users.find(u=>u.id===id && u.pw===pw && !u.admin);
+
+    if(!user) return alert("로그인 실패");
+
+    currentUser=user;
+    saveAll();
+    openMain();
+}
+
+function adminLogin(){
+    if(adminId.value.trim()!=="admin" || adminPw.value.trim()!=="1234"){
+        return alert("관리자 로그인 실패");
+    }
+
+    let admin=users.find(u=>u.id==="admin");
+    admin.school=adminSchool.value.trim();
+
+    currentUser=admin;
+    saveAll();
+    openMain();
+}
+
+function logout(){
+    currentUser=null;
+    localStorage.removeItem("currentUser");
+    goLogin();
+}
+
+function deleteAccount(){
+    if(currentUser.admin) return alert("관리자 계정 삭제 불가");
+
+    if(!confirm("회원 탈퇴하시겠습니까?")) return;
+
+    users = users.filter(u=>u.id!==currentUser.id);
+    localStorage.setItem("users",JSON.stringify(users));
+    localStorage.removeItem("currentUser");
+    currentUser=null;
+    goLogin();
+}
+
+/* 급식 저장 */
+function saveMeal(){
+    let date=mealDate.value.trim();
+    let food=mealFood.value.trim();
+
+    if(date==""||food=="") return alert("입력하세요");
+
+    if(!meals[currentUser.school]){
+        meals[currentUser.school]={};
+    }
+
+    meals[currentUser.school][date]=food.split(",");
+
+    saveAll();
+    drawCalendar();
+    alert("저장 완료");
+}
+
+/* 검색 */
+function searchMeal(){
+    let date=searchDate.value.trim();
+    result.innerHTML="";
+
+    if(meals[currentUser.school] && meals[currentUser.school][date]){
+        meals[currentUser.school][date].forEach(f=>{
+            let div=document.createElement("div");
+            div.className="food";
+            div.innerText=f.trim();
+            result.appendChild(div);
+        });
+    }else{
+        result.innerText="등록된 급식표 없음";
+    }
+}
+
+/* 달력 UI */
+function drawCalendar(){
+    calendar.innerHTML="";
+
+    let schoolMeals = meals[currentUser.school] || {};
+
+    let keys = Object.keys(schoolMeals);
+
+    if(keys.length===0){
+        calendar.innerHTML="<p>등록된 급식표 없음</p>";
+        return;
+    }
+
+    keys.forEach(date=>{
+        let div=document.createElement("div");
+        div.className="day";
+
+        div.innerHTML = `
+            <div class="dayTitle">${date}</div>
+            <div>${schoolMeals[date].join(", ")}</div>
+        `;
+
+        div.onclick=()=>{
+            if(deleteMode){
+                if(confirm(date+" 급식표 삭제할까요?")){
+                    delete meals[currentUser.school][date];
+                    saveAll();
+                    drawCalendar();
+                }
+            }
+        };
+
+        calendar.appendChild(div);
+    });
+}
+
+function toggleDeleteMode(){
+    deleteMode = !deleteMode;
+
+    if(deleteMode){
+        deleteBtn.classList.add("red");
+        deleteBtn.innerText="삭제 모드 종료";
+    }else{
+        deleteBtn.classList.remove("red");
+        deleteBtn.innerText="급식표 삭제";
+    }
+}
+
+/* 자동 로그인 유지 */
+if(currentUser){
+    openMain();
+}else{
+    goLogin();
+}
+</script>
+
+</body>
+</html>
